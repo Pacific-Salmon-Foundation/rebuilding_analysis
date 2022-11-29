@@ -1,0 +1,263 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r startup}
+setwd("~/R/PSF Hatchery Review/new new analysis")
+
+library(data.table)
+library(tidyverse)
+library(RColorBrewer)
+library(ggpubr)
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(patchwork)
+```
+
+```{r get escapement data}
+#### read escapement data ####
+nuseds<-fread("data/NuSEDS_escapement_data_collated_20220324.csv")
+names(nuseds)
+
+nuseds.clean<-nuseds%>%select(POP_ID,SPP,SYS_NM,faz_acro,maz_acro,CU_name,CU_findex,Area,IsIndicator,`1950`:`2020`)%>%
+  pivot_longer(10:80,names_to="year",values_to="escapement")%>%mutate(year=as.numeric(year))%>%mutate_all(~replace(., 0, NA))
+
+```
+
+
+```{r read control file and extract escapement systems}
+cn.control<-read_excel("master rebuilding stream list.xlsx",sheet="Chinook")
+
+esc.systems<-cn.control$pop.id
+esc.systems<-unlist(strsplit(esc.systems,",",fixed="T"))
+
+esc.data<-nuseds.clean%>%mutate(popid.link=as.character(POP_ID))%>%
+  filter(SPP=="CN"&popid.link%in%esc.systems)
+
+unique(esc.data$SYS_NM)
+
+names(esc.data)
+
+ggplot(esc.data,aes(x=year,y=escapement))+
+  geom_point()+geom_line()+
+  theme_bw()+
+  facet_wrap(~SYS_NM,ncol=3,scales="free_y")+
+  theme(strip.background = element_blank())
+
+ggsave("rebuilding spawners.pdf",dpi=600,height=25,width=7)
+#write.csv(esc.data,"escapement data from nuseds.csv")
+
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+
+```{r read and prepare release data}
+#### releases data ####
+releases<-fread("data/AllSEPReleases_2021-01-21 with otoliths.csv")
+
+#rel2<-releases%>%
+#  drop_na(BROOD_YEAR)%>%
+#  select(BROOD_YEAR,RELEASE_YEAR,STOCK_NAME,FACILITY_NAME,RELEASE_STAGE_NAME,
+#         RELEASE_SITE_NAME,TotalRelease,SPECIES_NAME,STOCK_PROD_AREA_CODE,MRP_TAGCODE)%>%
+#  mutate(TotalRelease=as.numeric(gsub(",", "", TotalRelease)))%>%
+# arrange(SPECIES_NAME,STOCK_NAME)
+
+rel2<-releases%>%
+  drop_na(BROOD_YEAR)%>%
+  select(BROOD_YEAR,RELEASE_YEAR,STOCK_NAME,FACILITY_NAME,RELEASE_STAGE_NAME,
+         RELEASE_SITE_NAME,REL_CU_NAME,REL_CU_INDEX,TotalRelease,SPECIES_NAME,STOCK_PROD_AREA_CODE,MRP_TAGCODE,STOCK_CU_NAME,STOCK_CU_INDEX)%>%
+  mutate(stocksite=paste0(RELEASE_SITE_NAME,":",STOCK_NAME))%>%
+  mutate(TotalRelease=as.numeric(gsub(",", "", TotalRelease)))%>%
+  arrange(SPECIES_NAME,STOCK_NAME)
+```
+
+
+```{r plot releases bu CU}
+cu.name<-"WEST VANCOUVER ISLAND-SOUTH_FA_0.x"
+cu.name<-"RIVERS INLET"
+cu.index<-"CK-32";cu.name<-"WEST VANCOUVER ISLAND-NOOTKA & KYUQUOT_FA_0.X"
+cu.index<-"CK-20";cu.name<-"SOUTHERN MAINLAND-GEORGIA STRAIT_FA_0.x"
+cu.index<-"CK-7";cu.name<-"MARIA SLOUGH_SU_0.3"
+cu.index<-"CK-25";cu.name<-"EAST VANCOUVER ISLAND-NANAIMO & CHEMAINUS_FA_0.x"
+cu.index<-"CK-83";cu.name<-"EAST VANCOUVER ISLAND-GEORGIA STRAIT_SU_0.3"
+cu.index<-"CK-11";cu.name<-"MIDDLE FRASER RIVER_SU_1.3"
+cu.index<-"CK-17";cu.name<-"LOWER THOMPSON_SP_1.2"
+
+
+relbycu<-rel2%>%filter(REL_CU_INDEX==cu.index&SPECIES_NAME=="Chinook")
+
+r.plot<-ggplot(relbycu,aes(x=RELEASE_YEAR,y=RELEASE_STAGE_NAME,size=TotalRelease,color=RELEASE_STAGE_NAME))+
+  geom_point(alpha=.5)+
+  facet_grid(stocksite~.,scales="free_y",switch="y",space="free_y")+
+  theme_bw()+
+  theme(strip.text.y.left=element_text(angle=0,size=8),
+        legend.position = "bottom",
+        legend.box = "vertical",
+        plot.title=element_text(hjust=0,size=8))+ 
+  labs(x="Release Year",y="Release Stage",title=paste0("Chinook: ",cu.name),subtitle="(Site:Stock)")+
+  scale_y_discrete(position = "right")+
+  guides(color="none")+
+  xlim(1970,2020)
+
+r.plot 
+
+ggsave(paste0("CN-",cu.name,".pdf"),dpi=600,height=6,width=7)
+
+```
+
+
+```{r}
+
+cn.control<-read_excel("master rebuilding stream list.xlsx",sheet="Chinook")
+
+release.sites<-cn.control$release.link
+release.sites<-unlist(strsplit(release.sites,",",fixed="T"))
+
+reb.rel<-rel2%>%filter(RELEASE_SITE_NAME%in%release.sites)
+
+all.release.plot<-ggplot(reb.rel,aes(x=RELEASE_YEAR,y=RELEASE_STAGE_NAME,size=TotalRelease,color=RELEASE_STAGE_NAME))+
+  geom_point(alpha=.5)+
+  facet_grid(RELEASE_SITE_NAME~.,scales="free_y",switch="y",space="free_y")+
+  theme_bw()+
+  theme(strip.text.y.left=element_text(angle=0,size=8),
+        legend.position = "bottom",
+        legend.box = "vertical",
+        plot.title=element_text(hjust=0))+ 
+  labs(x="Release Year",y="Release Stage",title=paste0("Chinook: ",cu.name),subtitle="(Site:Stock)")+
+  scale_y_discrete(position = "right")+
+  guides(color="none")+
+  xlim(1970,2020)
+
+all.release.plot
+
+ggsave(paste0("rebuilding releases.pdf"),dpi=600,height=15,width=7)
+
+```
+
+
+
+```{r plot releases bu CU}
+#### enhanced contribution ####
+enh.data<-read_excel("data/202009 EnhContCN-CO-AllYears.xlsx",sheet="Enhanced Contribution")
+
+#### PIN data for Chinook ####
+pni.data<-read_excel("data/CN PNI DATA from SEP.xlsx",sheet="Sheet1")
+
+pni.data.clean<-pni.data%>%select(Year=`Return Year`,Region,Population,phos.cwt=`pHOS (CWT)`,pnob.cwt=`pNOB (CWT)`,pni.cwt=`PNI (CWT, incl. jacks)`,
+                                  phos.thermal=`pHOS (Thermal)`,pnob.thermal=`pNOB (Thermal)`,pni.thermal=`PNI (Thermal)`)
+
+names(pni.data)
+
+sort(unique(pni.data$Population))
+
+
+
+```
+
+```{r dashboards}
+
+#### escapement figure ####
+sys.name<-"Ashlu Creek"
+esc.sp<-"CN"
+rel.sp<-"Chinook"
+esc.sys<-"ASHLU CREEK"
+rel.sys<-"Ashlu Cr"
+enh.sys<-"Ashlu Cr"  
+pni.sys<-"Ashlu Creek"
+
+esc<-nuseds.clean%>%filter(SPP==esc.sp&SYS_NM==esc.sys)
+
+plot.esc<-ggplot(esc,aes(x=year,y=escapement,color=SYS_NM))+
+  geom_point()+geom_line()+theme_bw()+
+  xlim(1950,2020)+
+  labs(y="Escapement",x="Return Year",color="System Name")+
+  scale_colour_brewer(palette="Set1")
+  
+plot.esc
+
+rel<-rel2%>%filter(RELEASE_SITE_NAME==rel.sys&SPECIES_NAME==rel.sp)%>%
+  group_by(RELEASE_YEAR,RELEASE_SITE_NAME,RELEASE_STAGE_NAME)%>%
+  summarise(releases=sum(TotalRelease))%>%
+  arrange(RELEASE_SITE_NAME,RELEASE_STAGE_NAME,RELEASE_YEAR)
+
+idx <- c(1, diff(rel$RELEASE_YEAR))
+i2 <- c(1,which(idx != 1), nrow(rel)+1)
+rel$grp <- rep(1:length(diff(i2)), diff(i2))
+
+plot.releases<-ggplot(rel,aes(x=RELEASE_YEAR,y=releases,color=RELEASE_STAGE_NAME,shape=RELEASE_SITE_NAME,group=grp))+
+  geom_point()+geom_line()+
+  scale_color_brewer(palette="Set1")+
+  theme_bw()+
+  xlim(1950,2020)+
+  labs(x="Release Year",y="Total Releases by Site/Stage",color="Stage",shape="Site")
+
+plot.releases
+
+enh.cont<-enh.data%>%filter(`Return Site`==enh.sys&`Sex/Maturity`=="Total Adults")%>%
+  arrange(`Composite Type`,`Recovery Year`)
+
+idx <- c(1, diff(enh.cont$`Recovery Year`))
+i2 <- c(1,which(idx != 1), nrow(enh.cont)+1)
+enh.cont$grp <- rep(1:length(diff(i2)), diff(i2))
+
+plot.enh<-ggplot(enh.cont,aes(x=`Recovery Year`,y=`Enh Contr %`,color=`Composite Type`))+
+  geom_point(alpha=.7)+geom_line(alpha=.7)+
+  scale_color_brewer(palette="Set1")+
+  theme_bw()+
+  xlim(1950,2020)+
+  ylim(0,100)+
+  labs(y="Enhanced Contribution %")
+
+plot.enh
+
+yrs<-seq(1960,2020,1)
+
+phos.plot.data<-pni.data.clean%>%filter(Population==pni.sys)%>%
+  select(Year,CWT=phos.cwt,Thermal=phos.thermal)%>%
+  pivot_longer(2:3,names_to="Mark Type",values_to="value")
+  
+plot.phos<-ggplot(phos.plot.data,aes(x=Year,y=value,color=`Mark Type`))+
+  geom_point()+geom_line()+
+  theme_bw()+
+  labs(y="pHOS")+
+  scale_color_brewer(palette="Set1")+
+  ylim(0,1)
+
+plot.phos
+
+pni.plot.data<-pni.data.clean%>%filter(Population==pni.sys)%>%
+  select(Year,CWT=pni.cwt,Thermal=pni.thermal)%>%
+  pivot_longer(2:3,names_to="Mark Type",values_to="value")
+  
+plot.pni<-ggplot(pni.plot.data,aes(x=Year,y=value,color=`Mark Type`))+
+  geom_point()+geom_line()+
+  scale_color_brewer(palette="Set1")+
+  theme_bw()+
+  labs(y="PNI")+
+  ylim(0,1)
+
+plot.pni
+
+
+pnis<-(plot.phos|plot.pni)+plot_layout(guides='collect')
+pnis
+
+(plot.esc/plot.releases/plot.enh)/pnis 
+
+#ggsave("junk.png",dpi=600,height=8,width=7)
+
+```
+

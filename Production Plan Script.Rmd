@@ -1,0 +1,124 @@
+---
+title: "Production Plan Synthesis"
+author: "Coastland"
+date: "21/04/2022"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(tidyverse)
+```
+
+```{r}
+setwd("C:/Users/Andy1/Documents/R/PSF HATCHERY REVIEW/new new analysis/")
+dir()
+
+pp2021<-fread("prod plans/pp2021.csv")
+
+
+gg.pp<-pp2021%>%filter(`Production Activity Type`=="Release",
+                       `Production Strategy Level`=="Primary",
+                       Objective%in%c("Rebuilding","Assessment/Rebuilding"))%>%
+  distinct(Species,`Regional Area`,`Release Site/ Transfer Project`)
+
+rebuildingsummary<-gg.pp%>%group_by(Species,`Regional Area`)%>%summarise(n=n())
+
+sum(rebuildingsummary$n)
+
+ggplot(rebuildingsummary,aes(y=n,x=factor(`Regional Area`),fill=Species))+
+  geom_bar(stat="identity",position="stack")+coord_flip()+
+  theme_bw()+labs(y="Number of Systems",x="Regional Area")+
+  scale_fill_brewer(palette="Set1")
+
+ggsave("prod plans/rebuilding systems by species by area.png",height=6,width=6,dpi=600)
+
+rebsums<-rebuildingsummary%>%group_by(Species)%>%summarise(n=sum(n))
+
+ggplot(rebsums,aes(x=n,y=reorder(factor(Species),n)))+
+  geom_col(fill="steelblue",color="black")+
+  labs(y="Species",x="Number of Systems")+
+  theme_bw()
+
+ggsave("prod plans/rebuilding systems by species.png",height=6,width=6,dpi=600)
+```
+
+## Combine all PPs
+
+```{r}
+pp<-fread("prod plans/production plans 2014-2021.csv")
+names(pp)
+gg.pp<-pp%>%filter(`Production Activity Type`=="Release",
+                       `Production Strategy Level`=="Primary",
+                       Objective%in%c("Rebuilding","Assessment/Rebuilding"),
+                       `Regional Area`!="Yukon and Transboundary River")%>%
+  distinct(`Production Year`,`Release Site/ Transfer Project`,.keep_all=TRUE)%>%
+  arrange(`Production Year`,Species,`Regional Area`,`Release Site/ Transfer Project`,`Release/ Transfer Stage`)
+
+gg.pp
+
+#write.csv(gg.pp,"rebuilding system prelim list.csv")
+str(gg.pp)
+
+ppsummary<-gg.pp%>%select(`Production Year`,`Program Code`,Project,Species,Stock, `Stock CU Index`,`Stock CU Name`,`Stock Stat Area`,Objective,`Release/ Transfer Stage`,`Release Site/ Transfer Project`,`Release/ Transfer Target`)%>%
+  filter(Species=="Chinook")%>%
+  arrange(`Release Site/ Transfer Project`,`Production Year`,`Release/ Transfer Stage`)
+
+write.csv(ppsummary,"rebuilding system chinook summary.csv")
+
+
+rebuildingsummary<-gg.pp%>%group_by(Species,`Regional Area`)%>%summarise(n=n())
+
+rebuildingsummary
+rebsums<-rebuildingsummary%>%group_by(Species)%>%summarise(n=sum(n))
+
+ggplot(rebsums,aes(x=n,y=reorder(factor(Species),n)))+
+  geom_col(fill="steelblue",color="black")+
+  labs(y="Species",x="Number of Systems")+
+  theme_bw()
+
+ggplot(rebuildingsummary,aes(y=n,x=factor(`Regional Area`),fill=Species))+
+  geom_bar(stat="identity",position="stack")+coord_flip()+
+  theme_bw()+labs(y="Number of Systems",x="Regional Area")+
+  scale_fill_brewer(palette="Set1")
+
+ggsave("prod plans/rebuilding systems by species by area 2014-2021.png",height=6,width=6,dpi=600)
+
+reb.by.year.by.species<-pp%>%filter(`Production Activity Type`=="Release",
+                       `Production Strategy Level`=="Primary",
+                       Objective%in%c("Rebuilding","Assessment/Rebuilding"),
+                       `Regional Area`!="Yukon and Transboundary River")%>%
+  distinct(`Production Year`,Species,`Regional Area`,`Release Site/ Transfer Project`)%>%
+  group_by(`Production Year`,Species,`Regional Area`)%>%tally()
+
+
+reb.by.year.by.species
+
+ggplot(reb.by.year.by.species,aes(x=`Production Year`,y=n,color=Species))+
+  facet_wrap(~`Regional Area`,ncol=1)+
+  theme_bw()+
+  geom_point()+geom_line()
+
+ggplot(reb.by.year.by.species,aes(x=`Production Year`,y=n,color=Species))+
+  facet_grid(Species~`Regional Area`)+
+  theme_bw()+labs(y="Number of Systems")+
+  geom_point()+geom_line()+
+  theme(legend.position = "none")
+
+ggsave("prod plans/rebuilding systems by species by area by year 2014-2021.png",height=6,width=6,dpi=600)
+
+ggplot(reb.by.year.by.species,aes(x=`Production Year`,y=n,fill=Species))+
+  facet_grid(Species~`Regional Area`)+
+  theme_bw()+
+  geom_col()
+
+rebuildingsummary
+
+
+
+
+```
+
