@@ -1,0 +1,104 @@
+---
+title: 'Appendix 1: Chinook Rebuilding Systems'
+output:
+  pdf_document: default
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r startup}
+
+library(data.table)
+library(tidyverse)
+library(RColorBrewer)
+library(ggpubr)
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(patchwork)
+
+options(scipen=10000)
+```
+
+\newpage
+
+```{r plot spawners,echo=FALSE,message=FALSE,warning=FALSE,fig.height=9,fig.width=7,fig.cap="Total Spawners for Chinook rebuilding systems."}
+
+escdata<-fread("data/Chinook rebuilding systems spawner data from nuseds revised.csv")
+
+ggplot(escdata,aes(x=year,y=escapement))+
+  geom_point(size=.5)+geom_line()+
+  theme_bw()+labs(y="Total Spawners",x="Year")+
+  facet_wrap(~SYS_NM,ncol=4,scales="free_y")+
+  theme(strip.background = element_blank(),
+        strip.text=element_text(size=6))
+
+```
+
+\newpage
+
+```{r release plot function, echo=FALSE}
+arp.plots<-function(dat){
+  ggplot(dat,aes(x=RELEASE_YEAR,y=RELEASE_STAGE_NAME,size=TotalRelease,color=RELEASE_STAGE_NAME))+
+  geom_point(alpha=.5)+
+  facet_grid(RELEASE_SITE_NAME~.,scales="free_y",switch="y",space="free_y")+
+  theme_bw()+
+  theme(strip.text.y.left=element_text(angle=0,size=6),
+        legend.position = "bottom",
+        legend.box = "vertical",
+        plot.title=element_text(hjust=0))+ 
+  labs(x="Release Year",y="Release Stage")+
+  scale_y_discrete(position = "right")+
+  guides(color="none")+
+  xlim(1970,2020)
+}
+```
+
+```{r release data,echo=FALSE,message=FALSE,warning=FALSE,fig.height=9,fig.width=7,fig.cap="Releases into Chinook rebuilding systems."}
+reb.rel<-fread("data/chinook rebuilding systems releases.csv")%>%
+  arrange(stocksite)%>%
+  group_by(RELEASE_SITE_NAME,RELEASE_YEAR,RELEASE_STAGE_NAME)%>%
+  summarise(TotalRelease=sum(TotalRelease))
+
+#names(reb.rel)
+
+#length(unique(reb.rel$stocksite))
+#length(unique(reb.rel$RELEASE_SITE_NAME))
+
+arp1.list<-unique(reb.rel$RELEASE_SITE_NAME)[1:20]
+arp1<-reb.rel%>%filter(RELEASE_SITE_NAME%in%arp1.list)
+
+arp2.list<-unique(reb.rel$RELEASE_SITE_NAME)[21:40]
+arp2<-reb.rel%>%filter(RELEASE_SITE_NAME%in%arp2.list)
+
+arp3.list<-unique(reb.rel$RELEASE_SITE_NAME)[41:60]
+arp3<-reb.rel%>%filter(RELEASE_SITE_NAME%in%arp3.list)
+
+arp4.list<-unique(reb.rel$RELEASE_SITE_NAME)[61:72]
+arp4<-reb.rel%>%filter(RELEASE_SITE_NAME%in%arp4.list)
+
+```
+
+
+```{r release plot1,echo=FALSE,message=FALSE,warning=FALSE,fig.height=9,fig.width=7,fig.cap="Releases into Chinook rebuilding systems."}
+arp.plots(arp1)
+```
+
+
+```{r release plot2,echo=FALSE,message=FALSE,warning=FALSE,fig.height=9,fig.width=7,fig.cap="Releases into Chinook rebuilding systems."}
+arp.plots(arp2)
+```
+
+
+```{r release plot3,echo=FALSE,message=FALSE,warning=FALSE,fig.height=9,fig.width=7,fig.cap="Releases into Chinook rebuilding systems."}
+arp.plots(arp3)
+
+```
+
+
+```{r release plot4,echo=FALSE,message=FALSE,warning=FALSE,fig.height=9,fig.width=7,fig.cap="Releases into Chinook rebuilding systems."}
+arp.plots(arp4)
+
+```
+

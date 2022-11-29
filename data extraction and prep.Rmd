@@ -7,7 +7,7 @@ editor_options:
 
 
 ```{r startup}
-setwd("~/R/PSF Hatchery Review/new new analysis")
+setwd("C:/Users/andy1/Documents/R/rebuilding_analysis")
 
 library(data.table)
 library(tidyverse)
@@ -44,16 +44,15 @@ unique(esc.data$SYS_NM)
 names(esc.data)
 
 ggplot(esc.data,aes(x=year,y=escapement))+
-  geom_point()+geom_line()+
+  geom_point(size=.5)+geom_line()+
   theme_bw()+
-  facet_wrap(~SYS_NM,ncol=3,scales="free_y")+
-  theme(strip.background = element_blank())
+  facet_wrap(~SYS_NM,ncol=4,scales="free_y")+
+  theme(strip.background = element_blank(),
+        strip.text=element_text(size=6))
 
-ggsave("rebuilding spawners.pdf",dpi=600,height=25,width=7)
-#write.csv(esc.data,"escapement data from nuseds.csv")
+ggsave("figures/Chinook rebuilding systems spawners from nuseds.png",dpi=600,height=9,width=7)
 
-
-
+write.csv(esc.data,"data/Chinook rebuilding systems spawner data from nuseds.csv")
 
 ```
 
@@ -96,7 +95,6 @@ cu.index<-"CK-83";cu.name<-"EAST VANCOUVER ISLAND-GEORGIA STRAIT_SU_0.3"
 cu.index<-"CK-11";cu.name<-"MIDDLE FRASER RIVER_SU_1.3"
 cu.index<-"CK-17";cu.name<-"LOWER THOMPSON_SP_1.2"
 
-
 relbycu<-rel2%>%filter(REL_CU_INDEX==cu.index&SPECIES_NAME=="Chinook")
 
 r.plot<-ggplot(relbycu,aes(x=RELEASE_YEAR,y=RELEASE_STAGE_NAME,size=TotalRelease,color=RELEASE_STAGE_NAME))+
@@ -128,22 +126,24 @@ release.sites<-unlist(strsplit(release.sites,",",fixed="T"))
 
 reb.rel<-rel2%>%filter(RELEASE_SITE_NAME%in%release.sites)
 
+write.csv(reb.rel,"data/chinook rebuilding systems releases.csv")
+
 all.release.plot<-ggplot(reb.rel,aes(x=RELEASE_YEAR,y=RELEASE_STAGE_NAME,size=TotalRelease,color=RELEASE_STAGE_NAME))+
   geom_point(alpha=.5)+
   facet_grid(RELEASE_SITE_NAME~.,scales="free_y",switch="y",space="free_y")+
   theme_bw()+
-  theme(strip.text.y.left=element_text(angle=0,size=8),
+  theme(strip.text.y.left=element_text(angle=0,size=6),
         legend.position = "bottom",
         legend.box = "vertical",
         plot.title=element_text(hjust=0))+ 
-  labs(x="Release Year",y="Release Stage",title=paste0("Chinook: ",cu.name),subtitle="(Site:Stock)")+
+  labs(x="Release Year",y="Release Stage",subtitle="(Site:Stock)")+
   scale_y_discrete(position = "right")+
   guides(color="none")+
   xlim(1970,2020)
 
 all.release.plot
 
-ggsave(paste0("rebuilding releases.pdf"),dpi=600,height=15,width=7)
+ggsave(paste0("figures/Chinook rebuilding systems  releases.pdf"),dpi=600,height=15,width=7)
 
 ```
 
