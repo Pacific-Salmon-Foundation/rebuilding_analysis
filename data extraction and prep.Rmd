@@ -31,17 +31,42 @@ nuseds.clean<-nuseds%>%select(POP_ID,SPP,SYS_NM,faz_acro,maz_acro,CU_name,CU_fin
 
 
 ```{r read control file and extract escapement systems}
-cn.control<-read_excel("master rebuilding stream list.xlsx",sheet="Chinook")
+cn.control<-read_excel("master rebuilding stream list good.xlsx",sheet="Chinook")
 
 esc.systems<-cn.control$pop.id
 esc.systems<-unlist(strsplit(esc.systems,",",fixed="T"))
 
 esc.data<-nuseds.clean%>%mutate(popid.link=as.character(POP_ID))%>%
-  filter(SPP=="CN"&popid.link%in%esc.systems)
+  filter(SPP=="CN"&popid.lebuilding systems spawner data from nuseds.RDS")
+```
+
+
+```{r read control file and extract escapement systems}
+unique(esc.data$SYS_NM)ink%in%esc.systems)
+
+saveRDS(esc.data,"data clean/Chinook r
+
+#extract, combine and add Bedwell back in.
+bedwell.esc<-nuseds.clean%>%mutate(popid.link=as.character(POP_ID))%>%
+  filter(SPP=="CN"&SYS_NM%in%c("BEDWELL SYSTEM","BEDWELL RIVER","URSUS CREEK"))
+
+bedwell.total<-bedwell.esc%>%group_by(year)%>%summarise(escapement=sum(escapement,na.rm=TRUE))%>%mutate_at(c('escapement'), ~na_if(., 0))
+
+bedwell.system<-esc.data%>%filter(SYS_NM==c("BEDWELL SYSTEM"))%>%mutate(escapement=bedwell.total$escapement)
+
+esc.data2<-esc.data%>%filter(SYS_NM!=c("BEDWELL SYSTEM"))
+
+esc.data<-bind_rows(esc.data2,bedwell.system)
 
 unique(esc.data$SYS_NM)
 
 names(esc.data)
+
+
+
+
+
+
 
 ggplot(esc.data,aes(x=year,y=escapement))+
   geom_point(size=.5)+geom_line()+
@@ -52,7 +77,7 @@ ggplot(esc.data,aes(x=year,y=escapement))+
 
 ggsave("figures/Chinook rebuilding systems spawners from nuseds.png",dpi=600,height=9,width=7)
 
-write.csv(esc.data,"data/Chinook rebuilding systems spawner data from nuseds.csv")
+saveRDS(esc.data,"data clean/Chinook rebuilding systems spawner data from nuseds.RDS")
 
 ```
 
@@ -126,7 +151,7 @@ release.sites<-unlist(strsplit(release.sites,",",fixed="T"))
 
 reb.rel<-rel2%>%filter(RELEASE_SITE_NAME%in%release.sites)
 
-write.csv(reb.rel,"data/chinook rebuilding systems releases.csv")
+saveRDS(reb.rel,"data clean/chinook rebuilding systems releases.RDS")
 
 all.release.plot<-ggplot(reb.rel,aes(x=RELEASE_YEAR,y=RELEASE_STAGE_NAME,size=TotalRelease,color=RELEASE_STAGE_NAME))+
   geom_point(alpha=.5)+
@@ -149,23 +174,65 @@ ggsave(paste0("figures/Chinook rebuilding systems  releases.pdf"),dpi=600,height
 
 
 
-```{r plot releases bu CU}
+```{r pni data prep}
 #### enhanced contribution ####
 enh.data<-read_excel("data/202009 EnhContCN-CO-AllYears.xlsx",sheet="Enhanced Contribution")
 
+
 #### PIN data for Chinook ####
-pni.data<-read_excel("data/CN PNI DATA from SEP.xlsx",sheet="Sheet1")
+pni.data<-read.csv("data/CN PNI DATA from SEP.csv")
 
-pni.data.clean<-pni.data%>%select(Year=`Return Year`,Region,Population,phos.cwt=`pHOS (CWT)`,pnob.cwt=`pNOB (CWT)`,pni.cwt=`PNI (CWT, incl. jacks)`,
-                                  phos.thermal=`pHOS (Thermal)`,pnob.thermal=`pNOB (Thermal)`,pni.thermal=`PNI (Thermal)`)
+pni.sites<-cn.control%>%select(pni.link)%>%filter(pni.link!="NA")
+pni.sites<-as.vector(pni.sites$pni.link)
 
-names(pni.data)
+pni.data.clean<-pni.data%>%select(Year=Return.Year,Region,Population,phos.cwt=pHOS..CWT.,
+                                  pnob.cwt=pNOB..CWT.,pni.cwt=PNI..CWT..incl..jacks.,
+                                  phos.thermal=pHOS..Thermal.,
+                                  pnob.thermal=pNOB..Thermal.,pni.thermal=PNI..Thermal.)%>%
+  filter(Population%in%pni.sites)
 
-sort(unique(pni.data$Population))
+write.csv(pni.data.clean,"data/chinook rebuilding systems PNI data clean.csv")
 
+pni.data.clean<-fread("data/chinook rebuilding systems PNI data clean.csv")
+pni.bubble<-pni.data.clean%>%select(Population, Year, phos.cwt,phos.thermal)%>%
+  pivot_longer(3:4,names_to="Mark Type",values_to="pHOS")%>%
+  mutate(pNOS=1-pHOS)
+
+names(pni.bubble)
+
+ggplot(pni.bubble,aes(x=Year,y=Population,size=pHOS,color=`Mark Type`))+
+         geom_point(alpha=.5)+
+         facet_wrap(~`Mark Type`,ncol=2)+
+  scale_color_manual(values=c("black","red"))+
+  scale_size(range=c(1,3))+
+  theme_bw()
 
 
 ```
+
+```{r WCVI only}
+
+cn<-cn.control%>%filter(Region=="WCVI")
+esc.list<-cn$nuseds.link
+
+esc<-esc.data%>%filter(SYS_NM%in%esc.list)
+
+names(cn)
+
+release.sites<-cn$release.link
+release.sites<-unlist(strsplit(release.sites,",",fixed="T"))
+
+reb.rel<-rel2%>%filter(RELEASE_SITE_NAME%in%release.sites)
+
+for(i in 1:5){
+
+  
+  
+}
+
+```
+
+
 
 ```{r dashboards}
 
@@ -174,6 +241,17 @@ sys.name<-"Ashlu Creek"
 esc.sp<-"CN"
 rel.sp<-"Chinook"
 esc.sys<-"ASHLU CREEK"
+rel.sys<-"Ashlu Cr"
+enh.sys<-"Ashlu Cr"  
+pni.sys<-"Ashlu Creek"
+
+wcvicn<-cn.control%>%filter(Region=="WCVI")
+j=1
+
+sys.name<-wcvicn$nuseds.link[j]
+esc.sp<-"CN"
+rel.sp<-"Chinook"
+esc.sys<-wcvicn$nuseds.link[j]
 rel.sys<-"Ashlu Cr"
 enh.sys<-"Ashlu Cr"  
 pni.sys<-"Ashlu Creek"
@@ -237,6 +315,7 @@ plot.phos<-ggplot(phos.plot.data,aes(x=Year,y=value,color=`Mark Type`))+
   ylim(0,1)
 
 plot.phos
+names(pni.data.clean)
 
 pni.plot.data<-pni.data.clean%>%filter(Population==pni.sys)%>%
   select(Year,CWT=pni.cwt,Thermal=pni.thermal)%>%
@@ -257,6 +336,7 @@ pnis
 
 (plot.esc/plot.releases/plot.enh)/pnis 
 
+ggsave("figures/test.png",dpi=600,height=9,width=7)
 #ggsave("junk.png",dpi=600,height=8,width=7)
 
 ```
