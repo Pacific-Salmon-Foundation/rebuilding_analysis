@@ -37,14 +37,15 @@ esc.systems<-cn.control$pop.id
 esc.systems<-unlist(strsplit(esc.systems,",",fixed="T"))
 
 esc.data<-nuseds.clean%>%mutate(popid.link=as.character(POP_ID))%>%
-  filter(SPP=="CN"&popid.lebuilding systems spawner data from nuseds.RDS")
+  filter(SPP=="CN"&POP_ID%in%esc.systems)
+
+saveRDS(esc.data,"data clean/Chinook rebuilding systems spawner data raw")
+
 ```
 
-
 ```{r read control file and extract escapement systems}
-unique(esc.data$SYS_NM)ink%in%esc.systems)
+unique(esc.data$SYS_NM)
 
-saveRDS(esc.data,"data clean/Chinook r
 
 #extract, combine and add Bedwell back in.
 bedwell.esc<-nuseds.clean%>%mutate(popid.link=as.character(POP_ID))%>%
@@ -54,20 +55,13 @@ bedwell.total<-bedwell.esc%>%group_by(year)%>%summarise(escapement=sum(escapemen
 
 bedwell.system<-esc.data%>%filter(SYS_NM==c("BEDWELL SYSTEM"))%>%mutate(escapement=bedwell.total$escapement)
 
-esc.data2<-esc.data%>%filter(SYS_NM!=c("BEDWELL SYSTEM"))
+esc.data2<-esc.data%>%filter(!SYS_NM%in%c("BEDWELL SYSTEM","BEDWELL RIVER","URSUS CREEK"))
 
 esc.data<-bind_rows(esc.data2,bedwell.system)
-
-unique(esc.data$SYS_NM)
-
-names(esc.data)
+```
 
 
-
-
-
-
-
+```{r escapement plots}
 ggplot(esc.data,aes(x=year,y=escapement))+
   geom_point(size=.5)+geom_line()+
   theme_bw()+
@@ -77,7 +71,6 @@ ggplot(esc.data,aes(x=year,y=escapement))+
 
 ggsave("figures/Chinook rebuilding systems spawners from nuseds.png",dpi=600,height=9,width=7)
 
-saveRDS(esc.data,"data clean/Chinook rebuilding systems spawner data from nuseds.RDS")
 
 ```
 
@@ -90,6 +83,16 @@ saveRDS(esc.data,"data clean/Chinook rebuilding systems spawner data from nuseds
 
 ```{r read and prepare release data}
 #### releases data ####
+
+```
+
+```{r}
+
+cn.control<-read_excel("master rebuilding stream list good.xlsx",sheet="Chinook")
+
+release.sites<-cn.control$release.link
+release.sites<-unlist(strsplit(release.sites,",",fixed="T"))
+
 releases<-fread("data/AllSEPReleases_2021-01-21 with otoliths.csv")
 
 #rel2<-releases%>%
@@ -106,6 +109,78 @@ rel2<-releases%>%
   mutate(stocksite=paste0(RELEASE_SITE_NAME,":",STOCK_NAME))%>%
   mutate(TotalRelease=as.numeric(gsub(",", "", TotalRelease)))%>%
   arrange(SPECIES_NAME,STOCK_NAME)
+
+reb.rel<-rel2%>%filter(RELEASE_SITE_NAME%in%release.sites)
+
+saveRDS(reb.rel,"data clean/chinook rebuilding systems releases.RDS")
+
+
+all.release.plot<-ggplot(reb.rel,aes(x=RELEASE_YEAR,y=RELEASE_STAGE_NAME,size=TotalRelease,color=RELEASE_STAGE_NAME))+
+  geom_point(alpha=.5)+
+  facet_grid(RELEASE_SITE_NAME~.,scales="free_y",switch="y",space="free_y")+
+  theme_bw()+
+  theme(strip.text.y.left=element_text(angle=0,size=6),
+        legend.position = "bottom",
+        legend.box = "vertical",
+        plot.title=element_text(hjust=0))+ 
+  labs(x="Release Year",y="Release Stage",subtitle="(Site:Stock)")+
+  scale_y_discrete(position = "right")+
+  guides(color="none")+
+  xlim(1970,2020)
+
+all.release.plot
+
+ggsave(paste0("figures/Chinook rebuilding systems releases.pdf"),dpi=600,height=15,width=7)
+
+```
+
+
+
+```{r enh cont data prep}
+#### enhanced contribution ####
+enh.data<-read_excel("data/202009 EnhContCN-CO-AllYears.xlsx",sheet="Enhanced Contribution")%>%
+  filter(Species=="Chinook")
+
+cn.control<-read_excel("master rebuilding stream list.xlsx",sheet="Chinook")
+
+enhcont.sites<-cn.control$enhcont.link
+
+enh.data.clean<-enh.data%>%filter(`Return Site`%in%enhcont.sites)
+
+saveRDS(enh.data,"data clean/chinook rebuilding enhanced contributions clean.RDS")
+```
+
+
+```{r pni data prep}
+#### PNI data for Chinook ####
+pni.data<-read.csv("data/CN PNI DATA from SEP.csv")
+
+pni.sites<-cn.control%>%select(pni.link)%>%filter(pni.link!="NA")
+pni.sites<-as.vector(pni.sites$pni.link)
+
+pni.data.clean<-pni.data%>%select(Year=Return.Year,Region,Population,phos.cwt=pHOS..CWT.,
+                                  pnob.cwt=pNOB..CWT.,pni.cwt=PNI..CWT..incl..jacks.,
+                                  phos.thermal=pHOS..Thermal.,
+                                  pnob.thermal=pNOB..Thermal.,pni.thermal=PNI..Thermal.)%>%
+  filter(Population%in%pni.sites)
+
+saveRDS(pni.data.clean,"data clean/chinook rebuilding systems PNI data clean.RDS")
+
+pni.data.clean<-fread("data/chinook rebuilding systems PNI data clean.csv")
+pni.bubble<-pni.data.clean%>%select(Population, Year, phos.cwt,phos.thermal)%>%
+  pivot_longer(3:4,names_to="Mark Type",values_to="pHOS")%>%
+  mutate(pNOS=1-pHOS)
+
+names(pni.bubble)
+
+ggplot(pni.bubble,aes(x=Year,y=Population,size=pHOS,color=`Mark Type`))+
+         geom_point(alpha=.5)+
+         facet_wrap(~`Mark Type`,ncol=2)+
+  scale_color_manual(values=c("black","red"))+
+  scale_size(range=c(1,3))+
+  theme_bw()
+
+
 ```
 
 
@@ -141,203 +216,4 @@ ggsave(paste0("CN-",cu.name,".pdf"),dpi=600,height=6,width=7)
 
 ```
 
-
-```{r}
-
-cn.control<-read_excel("master rebuilding stream list.xlsx",sheet="Chinook")
-
-release.sites<-cn.control$release.link
-release.sites<-unlist(strsplit(release.sites,",",fixed="T"))
-
-reb.rel<-rel2%>%filter(RELEASE_SITE_NAME%in%release.sites)
-
-saveRDS(reb.rel,"data clean/chinook rebuilding systems releases.RDS")
-
-all.release.plot<-ggplot(reb.rel,aes(x=RELEASE_YEAR,y=RELEASE_STAGE_NAME,size=TotalRelease,color=RELEASE_STAGE_NAME))+
-  geom_point(alpha=.5)+
-  facet_grid(RELEASE_SITE_NAME~.,scales="free_y",switch="y",space="free_y")+
-  theme_bw()+
-  theme(strip.text.y.left=element_text(angle=0,size=6),
-        legend.position = "bottom",
-        legend.box = "vertical",
-        plot.title=element_text(hjust=0))+ 
-  labs(x="Release Year",y="Release Stage",subtitle="(Site:Stock)")+
-  scale_y_discrete(position = "right")+
-  guides(color="none")+
-  xlim(1970,2020)
-
-all.release.plot
-
-ggsave(paste0("figures/Chinook rebuilding systems  releases.pdf"),dpi=600,height=15,width=7)
-
-```
-
-
-
-```{r pni data prep}
-#### enhanced contribution ####
-enh.data<-read_excel("data/202009 EnhContCN-CO-AllYears.xlsx",sheet="Enhanced Contribution")
-
-
-#### PIN data for Chinook ####
-pni.data<-read.csv("data/CN PNI DATA from SEP.csv")
-
-pni.sites<-cn.control%>%select(pni.link)%>%filter(pni.link!="NA")
-pni.sites<-as.vector(pni.sites$pni.link)
-
-pni.data.clean<-pni.data%>%select(Year=Return.Year,Region,Population,phos.cwt=pHOS..CWT.,
-                                  pnob.cwt=pNOB..CWT.,pni.cwt=PNI..CWT..incl..jacks.,
-                                  phos.thermal=pHOS..Thermal.,
-                                  pnob.thermal=pNOB..Thermal.,pni.thermal=PNI..Thermal.)%>%
-  filter(Population%in%pni.sites)
-
-write.csv(pni.data.clean,"data/chinook rebuilding systems PNI data clean.csv")
-
-pni.data.clean<-fread("data/chinook rebuilding systems PNI data clean.csv")
-pni.bubble<-pni.data.clean%>%select(Population, Year, phos.cwt,phos.thermal)%>%
-  pivot_longer(3:4,names_to="Mark Type",values_to="pHOS")%>%
-  mutate(pNOS=1-pHOS)
-
-names(pni.bubble)
-
-ggplot(pni.bubble,aes(x=Year,y=Population,size=pHOS,color=`Mark Type`))+
-         geom_point(alpha=.5)+
-         facet_wrap(~`Mark Type`,ncol=2)+
-  scale_color_manual(values=c("black","red"))+
-  scale_size(range=c(1,3))+
-  theme_bw()
-
-
-```
-
-```{r WCVI only}
-
-cn<-cn.control%>%filter(Region=="WCVI")
-esc.list<-cn$nuseds.link
-
-esc<-esc.data%>%filter(SYS_NM%in%esc.list)
-
-names(cn)
-
-release.sites<-cn$release.link
-release.sites<-unlist(strsplit(release.sites,",",fixed="T"))
-
-reb.rel<-rel2%>%filter(RELEASE_SITE_NAME%in%release.sites)
-
-for(i in 1:5){
-
-  
-  
-}
-
-```
-
-
-
-```{r dashboards}
-
-#### escapement figure ####
-sys.name<-"Ashlu Creek"
-esc.sp<-"CN"
-rel.sp<-"Chinook"
-esc.sys<-"ASHLU CREEK"
-rel.sys<-"Ashlu Cr"
-enh.sys<-"Ashlu Cr"  
-pni.sys<-"Ashlu Creek"
-
-wcvicn<-cn.control%>%filter(Region=="WCVI")
-j=1
-
-sys.name<-wcvicn$nuseds.link[j]
-esc.sp<-"CN"
-rel.sp<-"Chinook"
-esc.sys<-wcvicn$nuseds.link[j]
-rel.sys<-"Ashlu Cr"
-enh.sys<-"Ashlu Cr"  
-pni.sys<-"Ashlu Creek"
-
-esc<-nuseds.clean%>%filter(SPP==esc.sp&SYS_NM==esc.sys)
-
-plot.esc<-ggplot(esc,aes(x=year,y=escapement,color=SYS_NM))+
-  geom_point()+geom_line()+theme_bw()+
-  xlim(1950,2020)+
-  labs(y="Escapement",x="Return Year",color="System Name")+
-  scale_colour_brewer(palette="Set1")
-  
-plot.esc
-
-rel<-rel2%>%filter(RELEASE_SITE_NAME==rel.sys&SPECIES_NAME==rel.sp)%>%
-  group_by(RELEASE_YEAR,RELEASE_SITE_NAME,RELEASE_STAGE_NAME)%>%
-  summarise(releases=sum(TotalRelease))%>%
-  arrange(RELEASE_SITE_NAME,RELEASE_STAGE_NAME,RELEASE_YEAR)
-
-idx <- c(1, diff(rel$RELEASE_YEAR))
-i2 <- c(1,which(idx != 1), nrow(rel)+1)
-rel$grp <- rep(1:length(diff(i2)), diff(i2))
-
-plot.releases<-ggplot(rel,aes(x=RELEASE_YEAR,y=releases,color=RELEASE_STAGE_NAME,shape=RELEASE_SITE_NAME,group=grp))+
-  geom_point()+geom_line()+
-  scale_color_brewer(palette="Set1")+
-  theme_bw()+
-  xlim(1950,2020)+
-  labs(x="Release Year",y="Total Releases by Site/Stage",color="Stage",shape="Site")
-
-plot.releases
-
-enh.cont<-enh.data%>%filter(`Return Site`==enh.sys&`Sex/Maturity`=="Total Adults")%>%
-  arrange(`Composite Type`,`Recovery Year`)
-
-idx <- c(1, diff(enh.cont$`Recovery Year`))
-i2 <- c(1,which(idx != 1), nrow(enh.cont)+1)
-enh.cont$grp <- rep(1:length(diff(i2)), diff(i2))
-
-plot.enh<-ggplot(enh.cont,aes(x=`Recovery Year`,y=`Enh Contr %`,color=`Composite Type`))+
-  geom_point(alpha=.7)+geom_line(alpha=.7)+
-  scale_color_brewer(palette="Set1")+
-  theme_bw()+
-  xlim(1950,2020)+
-  ylim(0,100)+
-  labs(y="Enhanced Contribution %")
-
-plot.enh
-
-yrs<-seq(1960,2020,1)
-
-phos.plot.data<-pni.data.clean%>%filter(Population==pni.sys)%>%
-  select(Year,CWT=phos.cwt,Thermal=phos.thermal)%>%
-  pivot_longer(2:3,names_to="Mark Type",values_to="value")
-  
-plot.phos<-ggplot(phos.plot.data,aes(x=Year,y=value,color=`Mark Type`))+
-  geom_point()+geom_line()+
-  theme_bw()+
-  labs(y="pHOS")+
-  scale_color_brewer(palette="Set1")+
-  ylim(0,1)
-
-plot.phos
-names(pni.data.clean)
-
-pni.plot.data<-pni.data.clean%>%filter(Population==pni.sys)%>%
-  select(Year,CWT=pni.cwt,Thermal=pni.thermal)%>%
-  pivot_longer(2:3,names_to="Mark Type",values_to="value")
-  
-plot.pni<-ggplot(pni.plot.data,aes(x=Year,y=value,color=`Mark Type`))+
-  geom_point()+geom_line()+
-  scale_color_brewer(palette="Set1")+
-  theme_bw()+
-  labs(y="PNI")+
-  ylim(0,1)
-
-plot.pni
-
-
-pnis<-(plot.phos|plot.pni)+plot_layout(guides='collect')
-pnis
-
-(plot.esc/plot.releases/plot.enh)/pnis 
-
-ggsave("figures/test.png",dpi=600,height=9,width=7)
-#ggsave("junk.png",dpi=600,height=8,width=7)
-
-```
 
