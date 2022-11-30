@@ -139,7 +139,6 @@ plot.pni<-ggplot(pni.plot.data,aes(x=Year,y=value,color=`Mark Type`))+
 
 plot.pni
 
-
 pnis<-(plot.phos|plot.pni)+plot_layout(guides='collect')
 #pnis
 
@@ -168,72 +167,91 @@ esc.data<-bind_rows(esc.data2,bedwell.system)
 ```
 
 
-
-
-```{r,eval=FALSE}
+```{r,echo=FALSE,message=FALSE,warning=FALSE,fig.height=8,fig.width=7}
 
 fy<-wcvicn$first.year
-i=1
-for (i in 1:2) {
+i=3
+for (i in 1:5) {
 
 fy<-wcvicn$first.year[i]
 gl<-4
 
 esc<-esc.data%>%filter(SYS_NM==wcvicn$analysis.sys.link[i])
 
-esc.gens<-esc%>%mutate(gen=case_when(year<fy-2*gl~"Pre",
+cols<-brewer.pal(6,"Paired")
+
+esc.gens<-esc%>%
+  mutate(gen=case_when(year<fy-2*gl~"Pre",
                                      year>=fy-2*gl&year<=fy~"Pre 2GL",
                                      year>fy&year<=fy+gl~"Gen1",
                                      year>fy+gl&year<=fy+gl*2~"Gen2",
                                      year>fy+gl*2&year<=fy+gl*3~"Gen3",
-                                     year>fy+gl*3~"Post Gen3"))
+                                     year>fy+gl*3~"Post Gen3"))%>%
+  mutate(Color=case_when(gen=="Pre"~cols[4],
+                         gen=="Pre 2GL"~cols[3],
+                         gen=="Gen1"~cols[6],
+                         gen=="Gen2"~cols[5],
+                         gen=="Gen3"~cols[2],
+                         gen=="Post Gen3"~cols[1]))
+  
 
 #list unique PNI systems
-as.data.frame(pni%>%distinct(Population)%>%arrange())
-
 sys.pni<-pni.data%>%filter(Population==wcvicn$pni.link[i])
 
-pni2<-sys.pni%>%select(year=Return_Year,pHOS_Thermal)
+pni2<-sys.pni%>%select(Year,phos.thermal)
 
-nos<-merge(esc.gens,pni2,all=TRUE)%>%
-  mutate(nos=ifelse(gen=="Pre"|gen=="Pre 2GL",escapement,escapement*(1-pHOS_Thermal)))%>%
-  mutate(wild=ifelse(gen=="Pre"|gen=="Pre 2GL",escapement,escapement*(1-pHOS_Thermal)^2))
+nos<-merge(esc.gens,pni2,by.x="year",by.y="Year",all=TRUE)%>%
+  mutate(nos=ifelse(gen=="Pre"|gen=="Pre 2GL",escapement,escapement*(1-phos.thermal)))%>%
+  mutate(wild=ifelse(gen=="Pre"|gen=="Pre 2GL",escapement,escapement*(1-phos.thermal)^2))
 
 cols<-brewer.pal(6,"Paired")
 
-ggplot(esc.gens,aes(x=year,y=escapement,color=gen,fill=gen))+
+ts.plot<-ggplot(nos,aes(x=year,y=escapement,color=Color,fill=Color))+
   geom_boxplot(alpha=.4)+
-  scale_fill_manual(values=cols)+
-  scale_color_manual(values=cols)+
-  #  scale_fill_brewer(palette="Paired")+
-#  scale_color_brewer(palette="Paired")+
-  geom_vline(xintercept=1985)+labs(x="Year",y="Escapement")+
+  scale_color_identity(guide="legend",name="Period",
+                       labels=c("Gen3","Pre","Post Gen3","Pre 2GL","Gen1","Gen2"),
+                       breaks=c(cols[2],cols[4],cols[1],cols[3],cols[6],cols[5]))+
+  scale_fill_identity(guide="legend",name="Period",
+                       labels=c("Gen3","Pre","Post Gen3","Pre 2GL","Gen1","Gen2"),
+                      breaks=c(cols[2],cols[4],cols[1],cols[3],cols[6],cols[5]))+
+  geom_vline(xintercept=fy)+labs(x="Year",y="Escapement")+
   theme_bw()+
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom")+
+  xlim(1950,2020)
 
-ggsave("new new analysis/rebuilding2/test escapement sarita.png",dpi=600,height=5,width=4)
+ts.plot
 
-color2<-cols[c(3,4,5,6)]
-
-ggplot(nos,aes(x=year,y=nos,color=gen,fill=gen))+
+nos.plot<-ggplot(nos,aes(x=year,y=nos,color=Color,fill=Color))+
   geom_boxplot(alpha=.4)+
-  scale_fill_manual(values=color2)+
-  scale_color_manual(values=color2)+
-  #  geom_jitter(aes(color=gen),position=position_jitter(width=1))+
-  geom_vline(xintercept=1985)+labs(y="Natural Origin Spawners",x="Year")+
+  scale_color_identity(name="Period",
+                       labels=c("Gen3","Pre","Post Gen3","Pre 2GL","Gen1","Gen2"),
+                       breaks=c(cols[2],cols[4],cols[1],cols[3],cols[6],cols[5]))+
+  scale_fill_identity(name="Period",
+                       labels=c("Gen3","Pre","Post Gen3","Pre 2GL","Gen1","Gen2"),
+                      breaks=c(cols[2],cols[4],cols[1],cols[3],cols[6],cols[5]))+
+  geom_vline(xintercept=fy)+labs(y="Natural Origin Spawners",x="Year")+
   theme_bw()+
-  theme(legend.position = "none")
+  theme(legend.position = "bottom")+
+  xlim(1950,2020)
 
-ggsave("new new analysis/rebuilding2/test nos sarita.png",dpi=600,height=4,width=4)
+nos.plot
 
-ggplot(nos,aes(x=year,y=wild,color=gen,fill=gen))+
+wild.plot<-ggplot(nos,aes(x=year,y=wild,color=Color,fill=Color))+
   geom_boxplot(alpha=.4)+
-  scale_fill_manual(values=color2)+
-  scale_color_manual(values=color2)+
-  #  geom_jitter(aes(color=gen),position=position_jitter(width=1))+
-  geom_vline(xintercept=1985)+labs(y="Wild* Spawners",x="Year")+
+  scale_color_identity(name="Period",
+                       labels=c("Gen3","Pre","Post Gen3","Pre 2GL","Gen1","Gen2"),
+                       breaks=c(cols[2],cols[4],cols[1],cols[3],cols[6],cols[5]))+
+  scale_fill_identity(name="Period",
+                       labels=c("Gen3","Pre","Post Gen3","Pre 2GL","Gen1","Gen2"),
+                      breaks=c(cols[2],cols[4],cols[1],cols[3],cols[6],cols[5]))+
+  geom_vline(xintercept=fy)+labs(y="Wild* Spawners",x="Year")+
   theme_bw()+
-  theme(legend.position = "none")
+  theme(legend.position = "none")+
+  xlim(1950,2020)
+
+wild.plot
+
+print(ts.plot/nos.plot/wild.plot+plot_layout(guides='collect')+plot_annotation(title="Total Spawners, Natural Origin Spawners, and Wild Spawners",subtitle = paste0(wcvicn$analysis.sys.link[i]," (",region,")")))&theme(legend.position='bottom')
 
 }
 ```
