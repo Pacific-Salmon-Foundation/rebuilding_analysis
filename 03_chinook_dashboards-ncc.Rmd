@@ -1,0 +1,395 @@
+---
+title: 'Appendix X: Chinook Rebuilding System Dashboards'
+subtitle: 'North and Central Coast BC'
+output:
+  pdf_document: default
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+
+```{r startup,echo=FALSE,message=FALSE,warning=FALSE}
+setwd("C:/Users/andy1/Documents/R/rebuilding_analysis")
+
+library(data.table)
+library(tidyverse)
+library(RColorBrewer)
+library(ggpubr)
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(patchwork)
+options(scipen=1000)
+
+```
+
+
+```{r clean data load,echo=FALSE,message=FALSE,warning=FALSE}
+esc.data<-readRDS("data clean/Chinook rebuilding systems spawner data raw.RDS")
+
+rel.data<-readRDS("data clean/chinook rebuilding systems releases.RDS")
+
+enh.data<-readRDS("data clean/chinook rebuilding enhanced contributions clean.RDS")
+
+pni.data<-readRDS("data clean/chinook rebuilding systems PNI data clean.RDS")
+
+cn.control<-read_excel("master rebuilding stream list good.xlsx",sheet="Chinook")
+
+```
+
+\newpage
+
+```{r dashboards,echo=FALSE,message=FALSE,warning=FALSE,fig.height=10,fig.width=8}
+
+
+wcvicn<-cn.control%>%filter(Region=="NCC")
+n<-nrow(wcvicn)
+
+for (j in 1:n) {
+  
+sys.name<-wcvicn$Rebuilding.System[j]
+region<-wcvicn$Region[j]
+esc.sp<-"CN"
+rel.sp<-"Chinook"
+esc.sys<-wcvicn$nuseds.link[j]
+rel.sys<-wcvicn$release.link[j]
+enh.sys<-wcvicn$enhcont.link[j]  
+pni.sys<-wcvicn$pni.link[j]  
+plot.title<-paste0(sys.name," (",region,")")
+
+#escapement plot
+esc.sys<-unlist(strsplit(esc.sys,",",fixed="T"))
+
+esc<-esc.data%>%filter(SYS_NM%in%esc.sys)
+
+plot.esc<-ggplot(esc,aes(x=year,y=escapement,color=SYS_NM))+
+  geom_point()+geom_line()+theme_bw()+
+  xlim(1950,2020)+
+  labs(y="Escapement",x="Return Year",color="System Name")+
+  scale_colour_brewer(palette="Set1")
+  
+plot.esc
+
+#release plot
+rel.sys<-unlist(strsplit(rel.sys,",",fixed="T"))
+
+rel<-rel.data%>%filter(RELEASE_SITE_NAME%in%rel.sys&SPECIES_NAME==rel.sp)%>%
+  group_by(RELEASE_YEAR,RELEASE_SITE_NAME,RELEASE_STAGE_NAME)%>%
+  summarise(releases=sum(TotalRelease))%>%
+  arrange(RELEASE_SITE_NAME,RELEASE_STAGE_NAME,RELEASE_YEAR)
+
+idx <- c(1, diff(rel$RELEASE_YEAR))
+i2 <- c(1,which(idx != 1), nrow(rel)+1)
+rel$grp <- rep(1:length(diff(i2)), diff(i2))
+
+plot.releases<-ggplot(rel,aes(x=RELEASE_YEAR,y=releases,color=RELEASE_STAGE_NAME,
+                              shape=RELEASE_SITE_NAME,group=grp))+
+  geom_point()+geom_line()+
+  scale_color_brewer(palette="Set1")+
+  theme_bw()+
+  xlim(1950,2020)+
+  labs(x="Release Year",y="Total Releases by Site/Stage",color="Stage",shape="Site")
+
+plot.releases
+
+enh.cont<-enh.data%>%filter(`Return Site`==enh.sys&`Sex/Maturity`=="Total Adults")%>%
+  arrange(`Sex/Maturity`,`Composite Type`,`Recovery Year`)
+
+idx <- c(1, diff(enh.cont$`Recovery Year`))
+i2 <- c(1,which(idx != 1), nrow(enh.cont)+1)
+enh.cont$grp <- rep(1:length(diff(i2)), diff(i2))
+
+plot.enh<-ggplot(enh.cont,aes(x=`Recovery Year`,y=`Enh Contr %`,color=`Composite Type`))+
+  geom_point(alpha=.7)+geom_line(alpha=.7)+
+  scale_color_brewer(palette="Set1")+
+  theme_bw()+
+  xlim(1950,2020)+
+  ylim(0,100)+
+  labs(y="Enhanced Contribution %")
+
+plot.enh
+
+yrs<-seq(1960,2020,1)
+
+phos.plot.data<-pni.data%>%filter(Population==pni.sys)%>%
+  select(Year,CWT=phos.cwt,Thermal=phos.thermal)%>%
+  pivot_longer(2:3,names_to="Mark Type",values_to="value")
+  
+plot.phos<-ggplot(phos.plot.data,aes(x=Year,y=value,color=`Mark Type`))+
+  geom_point()+geom_line()+
+  theme_bw()+
+  labs(y="pHOS")+
+  xlim(1960,2020)+
+  scale_color_brewer(palette="Set1")+
+  ylim(0,1)
+
+plot.phos
+
+pni.plot.data<-pni.data%>%filter(Population==pni.sys)%>%
+  select(Year,CWT=pni.cwt,Thermal=pni.thermal)%>%
+  pivot_longer(2:3,names_to="Mark Type",values_to="value")
+  
+plot.pni<-ggplot(pni.plot.data,aes(x=Year,y=value,color=`Mark Type`))+
+  geom_point()+geom_line()+
+  scale_color_brewer(palette="Set1")+
+  theme_bw()+
+  labs(y="PNI")+
+  xlim(1960,2020)+
+  ylim(0,1)
+
+plot.pni
+
+pnis<-(plot.phos|plot.pni)+plot_layout(guides='collect')
+#pnis
+
+print((plot.esc/plot.releases/plot.enh)/pnis+plot_annotation(
+  title = plot.title))
+
+}
+#ggsave("figures/test.png",dpi=600,height=9,width=7)
+#ggsave("junk.png",dpi=600,height=8,width=7)
+
+```
+
+
+```{r specific combinations,echo=FALSE,message=FALSE,warning=FALSE,eval=FALSE}
+bedwell.esc<-esc.data%>%mutate(popid.link=as.character(POP_ID))%>%
+  filter(SPP=="CN"&SYS_NM%in%c("BEDWELL SYSTEM","BEDWELL RIVER","URSUS CREEK"))
+
+bedwell.total<-bedwell.esc%>%group_by(year)%>%summarise(escapement=sum(escapement,na.rm=TRUE))%>%mutate_at(c('escapement'), ~na_if(., 0))
+
+bedwell.system<-esc.data%>%filter(SYS_NM==c("BEDWELL SYSTEM"))%>%mutate(escapement=bedwell.total$escapement)
+
+esc.data2<-esc.data%>%filter(SYS_NM!=c("BEDWELL SYSTEM"))
+
+esc.data<-bind_rows(esc.data2,bedwell.system)
+
+```
+
+
+```{r,eval=FALSE,echo=FALSE,message=FALSE,warning=FALSE,fig.height=9,fig.width=7}
+fy<-wcvicn$first.year
+i=1
+for (i in 1:n) {
+
+if(wcvicn$ts[i]=="y") {
+
+fy<-wcvicn$first.year[i]
+gl<-4
+
+esc<-esc.data%>%filter(SYS_NM==wcvicn$analysis.sys.link[i])
+
+cols<-brewer.pal(6,"Paired")
+
+esc.gens<-esc%>%
+  mutate(gen=case_when(year<fy-2*gl~"Pre",
+                                     year>=fy-2*gl&year<=fy~"Pre 2GL",
+                                     year>fy&year<=fy+gl~"Gen1",
+                                     year>fy+gl&year<=fy+gl*2~"Gen2",
+                                     year>fy+gl*2&year<=fy+gl*3~"Gen3",
+                                     year>fy+gl*3~"Post Gen3"))%>%
+  mutate(Color=case_when(gen=="Pre"~cols[4],
+                         gen=="Pre 2GL"~cols[3],
+                         gen=="Gen1"~cols[6],
+                         gen=="Gen2"~cols[5],
+                         gen=="Gen3"~cols[2],
+                         gen=="Post Gen3"~cols[1]))
+  
+
+#pull PNI data by system
+sys.pni<-pni.data%>%filter(Population==wcvicn$pni.link[i])
+
+pni2<-sys.pni%>%select(Year,phos.thermal)
+
+#merge phos and escapement data
+nos<-merge(esc.gens,pni2,by.x="year",by.y="Year",all=TRUE)%>%
+  mutate(nos=ifelse(gen=="Pre"|gen=="Pre 2GL",escapement,escapement*(1-phos.thermal)))%>%
+  mutate(wild=ifelse(gen=="Pre"|gen=="Pre 2GL",escapement,escapement*(1-phos.thermal)^2))
+
+names(nos)
+
+escs<-nos%>%select(year,escapement,nos,wild,gen)%>%
+  mutate(noses=case_when(gen!="Pre"~nos),
+         tots=case_when(gen!="Pre"~escapement))%>%
+  select(year,tots,noses,wild)%>%
+  pivot_longer(2:4,names_to="Type",values_to="Spawners")
+  
+#plots
+cols2<-brewer.pal(3,"Set1")
+
+sp.plot<-ggplot(escs,aes(x=year,y=Spawners,color=Type))+
+  geom_point()+geom_line()+
+  theme_bw()+labs(x="Year")+
+  xlim(1950,2020)+
+  scale_color_manual(breaks=c("noses","tots","wild"),
+                     labels=c("Natural Origin","Total","Wild"),
+                     values=c(cols2[1],cols2[2],cols2[3]),
+                     name="Spawners")+
+  theme(axis.title.x = element_blank())
+sp.plot
+
+ts.plot<-ggplot(nos,aes(x=year,y=escapement,color=Color,fill=Color))+
+  geom_boxplot(alpha=.4)+
+  scale_color_identity(guide="legend",name="Period",
+                       labels=c("Gen3","Pre","Post Gen3","Pre 2GL","Gen1","Gen2"),
+                       breaks=c(cols[2],cols[4],cols[1],cols[3],cols[6],cols[5]))+
+  scale_fill_identity(guide="legend",name="Period",
+                       labels=c("Gen3","Pre","Post Gen3","Pre 2GL","Gen1","Gen2"),
+                      breaks=c(cols[2],cols[4],cols[1],cols[3],cols[6],cols[5]))+
+  geom_vline(xintercept=fy)+labs(x="Year",y="Escapement")+
+  theme_bw()+
+  theme(legend.position = "bottom")+
+  theme(axis.title.x = element_blank())+
+  xlim(1950,2020)
+
+ts.plot
+
+nos.plot<-ggplot(nos,aes(x=year,y=nos,color=Color,fill=Color))+
+  geom_boxplot(alpha=.4)+
+  scale_color_identity(name="Period",
+                       labels=c("Gen3","Pre","Post Gen3","Pre 2GL","Gen1","Gen2"),
+                       breaks=c(cols[2],cols[4],cols[1],cols[3],cols[6],cols[5]))+
+  scale_fill_identity(name="Period",
+                       labels=c("Gen3","Pre","Post Gen3","Pre 2GL","Gen1","Gen2"),
+                      breaks=c(cols[2],cols[4],cols[1],cols[3],cols[6],cols[5]))+
+  geom_vline(xintercept=fy)+labs(y="Natural Origin Spawners",x="Year")+
+  theme_bw()+
+  theme(legend.position = "bottom")+
+  theme(axis.title.x = element_blank())+
+  xlim(1950,2020)
+
+nos.plot
+
+wild.plot<-ggplot(nos,aes(x=year,y=wild,color=Color,fill=Color))+
+  geom_boxplot(alpha=.4)+
+  scale_color_identity(name="Period",
+                       labels=c("Gen3","Pre","Post Gen3","Pre 2GL","Gen1","Gen2"),
+                       breaks=c(cols[2],cols[4],cols[1],cols[3],cols[6],cols[5]))+
+  scale_fill_identity(name="Period",
+                       labels=c("Gen3","Pre","Post Gen3","Pre 2GL","Gen1","Gen2"),
+                      breaks=c(cols[2],cols[4],cols[1],cols[3],cols[6],cols[5]))+
+  geom_vline(xintercept=fy)+labs(y="Wild* Spawners",x="Year")+
+  theme_bw()+
+  theme(legend.position = "none")+
+  xlim(1950,2020)
+
+wild.plot
+
+p1<-sp.plot/ts.plot/nos.plot/wild.plot+
+  plot_layout(guides='collect')&theme(legend.position='bottom')
+
+print(
+p1+plot_annotation(title="Total Spawners, Natural Origin Spawners, and Wild Spawners",subtitle = paste0(wcvicn$analysis.sys.link[i]," (",region,")"))
+)
+
+
+}
+
+}
+```
+
+
+```{r,eval=FALSE,echo=FALSE,message=FALSE,warning=FALSE,fig.height=9,fig.width=7}
+store<-data.frame(system=NA,year=NA,tots=NA,noses=NA,wild=NA,gen=NA)
+
+for (i in 1:n) {
+
+if(wcvicn$ts[i]=="y") {
+
+fy<-wcvicn$first.year[i]
+gl<-4
+
+esc<-esc.data%>%filter(SYS_NM==wcvicn$analysis.sys.link[i])
+
+cols<-brewer.pal(6,"Paired")
+
+esc.gens<-esc%>%
+  mutate(gen=case_when(year<fy-2*gl~"Pre",
+                                     year>=fy-2*gl&year<=fy~"Pre 2GL",
+                                     year>fy&year<=fy+gl~"Gen1",
+                                     year>fy+gl&year<=fy+gl*2~"Gen2",
+                                     year>fy+gl*2&year<=fy+gl*3~"Gen3",
+                                     year>fy+gl*3~"Post Gen3"))%>%
+  mutate(Color=case_when(gen=="Pre"~cols[4],
+                         gen=="Pre 2GL"~cols[3],
+                         gen=="Gen1"~cols[6],
+                         gen=="Gen2"~cols[5],
+                         gen=="Gen3"~cols[2],
+                         gen=="Post Gen3"~cols[1]))
+  
+
+#pull PNI data by system
+sys.pni<-pni.data%>%filter(Population==wcvicn$pni.link[i])
+
+pni2<-sys.pni%>%select(Year,phos.thermal)
+
+#merge phos and escapement data
+nos<-merge(esc.gens,pni2,by.x="year",by.y="Year",all=TRUE)%>%
+  mutate(nos=ifelse(gen=="Pre"|gen=="Pre 2GL",escapement,escapement*(1-phos.thermal)))%>%
+  mutate(wild=ifelse(gen=="Pre"|gen=="Pre 2GL",escapement,escapement*(1-phos.thermal)^2))
+
+names(escs)
+
+escs<-nos%>%select(year,escapement,nos,wild,gen)%>%
+  mutate(noses=case_when(gen!="Pre"~nos),
+         tots=case_when(gen!="Pre"~escapement))%>%
+  select(year,tots,noses,wild,gen)%>%
+  mutate(system=wcvicn$analysis.sys.link[i])
+
+store<-rbind(store,escs)
+}
+}
+
+#store
+
+```
+
+\newpage
+
+```{r,eval=FALSE,echo=FALSE,message=FALSE,warning=FALSE,fig.height=7,fig.width=7}
+summ<-store%>%
+  rename(Total.Spawners=tots,Natural.Origin.Spawners=noses,Wild.Spawners=wild)%>%
+  pivot_longer(3:5,names_to="type",values_to="fish")%>%
+  group_by(system,type,gen)%>%summarise(u=mean(fish,na.rm=TRUE))%>%
+  filter(!is.na(system))
+
+ggplot(summ,aes(x=u,y=system,color=gen))+
+  geom_point()+
+  facet_wrap(~type,ncol=3)
+
+ratios<-summ%>%pivot_wider(names_from="gen",values_from="u")%>%
+  mutate(gen3.pre=Gen3/`Pre 2GL`,log3pre=log(gen3.pre),
+         postpre=`Post Gen3`/`Pre 2GL`,logpostpre=log(postpre))
+
+ratios$type<-factor(ratios$type,levels=c("Wild.Spawners","Natural.Origin.Spawners","Total.Spawners"))
+```
+
+\newpage
+
+```{r,eval=FALSE,echo=FALSE,message=FALSE,warning=FALSE,fig.height=7,fig.width=7}
+
+ggplot(ratios,aes(x=system,y=log3pre))+
+  geom_point(color="steelblue",size=2)+
+  theme_bw()+
+  labs(x="System",y="Log ratio (3rd Generation Post Enhancement/Pre 2 Generations)")+
+  facet_wrap(~type,ncol=1)+
+  geom_hline(yintercept=0)+
+  theme(axis.text.x=element_text(angle=90))
+
+```
+
+\newpage
+
+```{r,eval=FALSE,echo=FALSE,message=FALSE,warning=FALSE,fig.height=7,fig.width=7}
+ggplot(ratios,aes(x=system,y=logpostpre))+
+  geom_point(color="steelblue",size=2)+
+  theme_bw()+
+  labs(x="System",y="Log ratio (Post 3rd Generation/Pre 2 Generations)")+
+  facet_wrap(~type,ncol=1)+
+  geom_hline(yintercept=0)+
+  theme(axis.text.x=element_text(angle=90))
+
+
+```
+
